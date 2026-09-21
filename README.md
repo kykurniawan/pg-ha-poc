@@ -21,9 +21,9 @@ flowchart TB
     clients(["clients"]) --> haproxy
 
     subgraph haproxy["HAProxy"]
-        write["`:5432` write &rarr; primary only"]
-        read["`:5433` read &rarr; replicas (round robin)"]
-        stats["`:7001` stats"]
+        write["5432 write - primary only"]
+        read["5433 read - replicas round robin"]
+        stats["7001 stats"]
     end
 
     subgraph node1["node-1"]
