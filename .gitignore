@@ -1,0 +1,34 @@
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+pgpass
+**/pgpass
+
+# Logs
+*.log
+logs/
+
+# Local bind-mounted volume data (if compose files are changed to bind-mount instead of named volumes)
+**/data/
+**/pgdata/
+**/etcd-data/
+
+# Node (in case bun/npm is ever run from repo root)
+node_modules/
+
+# Ad-hoc dumps/backups
+*.dump
+*.bak

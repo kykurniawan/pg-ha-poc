@@ -1,0 +1,44 @@
+services:
+  etcd1:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: etcd1
+    environment:
+      - ETCD_NAME=etcd1
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd1:2379
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-pg-cluster
+    networks:
+      - pg-ha-net
+
+  pg-node1:
+    image: ongres/patroni:latest
+    container_name: pg-node1
+    command: ["patroni", "/tmp/patroni.yml"]
+    volumes:
+      - ../patroni-bootstrap.yml:/tmp/patroni.yml:ro
+    environment:
+      - PATRONI_NAME=node1
+      - PATRONI_RESTAPI_LISTEN=0.0.0.0:8008
+      - PATRONI_RESTAPI_CONNECT_ADDRESS=pg-node1:8008
+      - PATRONI_ETCD3_HOSTS=etcd1:2379,etcd2:2379,etcd3:2379
+      - PATRONI_SCOPE=pg-cluster
+      - PATRONI_POSTGRESQL_LISTEN=0.0.0.0:5432
+      - PATRONI_POSTGRESQL_CONNECT_ADDRESS=pg-node1:5432
+      - PATRONI_POSTGRESQL_DATA_DIR=/var/lib/postgresql/data
+      - PATRONI_POSTGRESQL_PGPASS=/tmp/pgpass
+      - PATRONI_REPLICATION_USERNAME=replicator
+      - PATRONI_REPLICATION_PASSWORD=rep_password
+      - PATRONI_SUPERUSER_USERNAME=postgres
+      - PATRONI_SUPERUSER_PASSWORD=postgres_password
+    depends_on:
+      - etcd1
+    networks:
+      - pg-ha-net
+
+networks:
+  pg-ha-net:
+    external: true

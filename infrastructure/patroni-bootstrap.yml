@@ -1,0 +1,18 @@
+bootstrap:
+  dcs:
+    ttl: 10
+    loop_wait: 2
+    retry_timeout: 5
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+  pg_hba:
+    - host replication replicator 0.0.0.0/0 md5
+    - host all all 0.0.0.0/0 md5
+
+postgresql:
+  parameters:
+    unix_socket_directories: /tmp
