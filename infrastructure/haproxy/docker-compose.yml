@@ -3,8 +3,7 @@ services:
     image: haproxy:3.3-alpine
     container_name: haproxy-gateway
     ports:
-      - "5432:5432" # Write Port
-      - "5433:5433" # Read Port
+      - "5432:5432" # Read/Write Port (routes to whichever node is Primary)
       - "7001:7000" # HAProxy Stats Page — host 7000 is taken by macOS AirPlay Receiver
     volumes:
       - ../haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro

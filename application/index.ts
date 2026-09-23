@@ -52,15 +52,6 @@ const insert = async (message: string) => {
     }
 };
 
-const read = async () => {
-    try {
-        const result = await db.query("SELECT * FROM logs ORDER BY created_at DESC LIMIT 3;");
-        return result.rows;
-    } catch (error: any) {
-        throw new Error(error.message);
-    }
-};
-
 const count = async () => {
     try {
         const result = await db.query("SELECT COUNT(id) FROM logs;");
@@ -75,21 +66,15 @@ const simulate = async () => {
 
     setInterval(async () => {
         try {
-            const message = `Log automated at ${new Date().toISOString()}`;
+            const message = `Log at ${new Date().toISOString()}`;
 
             const insertResult = await insert(message);
             console.log(`Inserted log with ID ${insertResult.id} and message "${insertResult.message}".`);
 
             const countResult = await count();
             console.log(`Current total logs: ${countResult}.`);
-
-            const readResults = await read();
-            console.log(`Latest 3 logs:`);
-            readResults.forEach((result) => {
-                console.log(`- ID: ${result.id}, Message: ${result.message}`);
-            });
         } catch (error: any) {
-            console.error("Error simulating data insertion and reading flip-flop:", error);
+            console.error("Error simulating data insertion and reading flip-flop:", error.message);
         } finally {
             console.log("--------------------------------------------------------------------------------");
         }

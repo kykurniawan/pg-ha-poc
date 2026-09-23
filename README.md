@@ -14,15 +14,14 @@ Each of the 3 nodes runs its own `etcd` member plus a `Patroni`-managed PostgreS
 
 - **etcd** (3-member cluster) holds the leader lock and cluster state. Tolerates 1 node loss (needs 2/3 for quorum).
 - **Patroni** on each node watches that lock, runs PostgreSQL, and promotes a replica to primary automatically if the current primary disappears.
-- **HAProxy** exposes a single write endpoint (`:5432`, routes only to whichever node is currently primary via the `/primary` health check) and a load-balanced read endpoint (`:5433`, routes to replicas via `/replica`).
+- **HAProxy** exposes a single read/write endpoint (`:5432`) that always routes to whichever node is currently primary, via the `/primary` health check. Reads and writes both go through this one port — there's no separate read replica endpoint (see "Read/write separation" below for why).
 
 ```mermaid
 flowchart TB
     clients(["clients"]) --> haproxy
 
     subgraph haproxy["HAProxy"]
-        write["5432 write - primary only"]
-        read["5433 read - replicas round robin"]
+        rw["5432 read/write - primary only"]
         stats["7001 stats"]
     end
 
@@ -41,12 +40,9 @@ flowchart TB
         pgnode3["pg-node3"]
     end
 
-    write --> pgnode1
-    write --> pgnode2
-    write --> pgnode3
-    read --> pgnode1
-    read --> pgnode2
-    read --> pgnode3
+    rw --> pgnode1
+    rw --> pgnode2
+    rw --> pgnode3
 
     etcd1 <--> etcd2
     etcd2 <--> etcd3
@@ -83,15 +79,14 @@ make down-all
 Connect through HAProxy:
 
 ```bash
-psql "postgresql://postgres:postgres_password@localhost:5432/postgres"  # writes → primary
-psql "postgresql://postgres:postgres_password@localhost:5433/postgres"  # reads  → replicas
+psql "postgresql://postgres:postgres_password@localhost:5432/postgres"  # reads & writes → primary
 ```
 
 ## Monitoring — which node is primary?
 
 **HAProxy stats page** (browser, auto-refreshes every 5s):
 http://localhost:7001/ — user `admin` / pass `admin`.
-Whichever server is **UP** under `pg_write_back` is the current primary.
+Whichever server is **UP** under `pg_back` is the current primary.
 
 > Stats are published on host port **7001**, not 7000 — macOS's Control Center (AirPlay Receiver) permanently occupies port 7000 on all interfaces, so 7000 is unusable for local Docker port publishing on Mac.
 
@@ -141,3 +136,9 @@ Current profile is tuned for fast failover (`ttl: 10`, `loop_wait: 2`, `retry_ti
 - Patroni's `bootstrap` config section only loads from a config file (`PATRONI_CONFIGURATION` env var or a mounted YAML like `patroni-bootstrap.yml`); there is no `PATRONI_BOOTSTRAP_*` env var scheme, so without that file no node ever attempts `initdb`.
 - The image doesn't create `/run/postgresql`, so `postgresql.parameters.unix_socket_directories` is pinned to `/tmp` in `patroni-bootstrap.yml`.
 - Periodic `ConnectionResetError` warnings in `pg-node*` logs from HAProxy's IP are benign — HAProxy's `httpchk` only reads the HTTP status line and closes the connection before Patroni finishes writing the full JSON body.
+
+## Read/write separation
+
+`haproxy.cfg` intentionally has one frontend/backend (`pg_front` / `pg_back` on `:5432`), routing every connection — read or write — to the current primary via the `/primary` health check. Patroni's REST API also exposes `/replica` (200 on standbys, 503 on the primary), which is enough to add a second frontend/backend pair load-balancing across replicas for read traffic, the same way this cluster already load-balances writes across whichever node holds the lock.
+
+It isn't wired up here because HAProxy only proxies TCP — it can't tell a `SELECT` from an `INSERT`, so splitting traffic requires the *application* to route read queries to that second port itself (typically a second connection pool), and to accept that replica reads can lag behind a just-committed write (Postgres streaming replication is asynchronous). Keeping a single endpoint keeps this POC's failover story — and the client code exercising it — to one path to reason about.
